@@ -92,15 +92,20 @@ def national_insurance(pre_ni):
     ni += earnings_above_uel * 0.02
     return ni
 
+def employers_national_insurance(pre_ni):
+    earnings_above_pt = max(0, pre_ni - NI_PRIMARY_THESHOLD)
+    return earnings_above_pt * 0.138
 
 def main():
     DAY_RATE_COLNAME = "Day rate (£)"
     PRE_TAX_INCOME_COLNAME = "Pre-tax income"
     CONTRACTOR_TAKE_HOME_COLNAME = "Contractor_take_home"
+    E_TAKE_HOME_COLNAME = "Employee take home"
+
     df = pd.DataFrame(
         data=[
             (day_rate, day_rate * WORKING_DAYS_IN_A_YEAR)
-            for day_rate in range(100, 1000, 10)
+            for day_rate in range(0, 1000, 10)
         ],
         columns=(DAY_RATE_COLNAME, PRE_TAX_INCOME_COLNAME),
     )
@@ -117,13 +122,16 @@ def main():
         contractor_personal_taxes
     )
 
-    df["Employee take home"] = df[PRE_TAX_INCOME_COLNAME] - df[PRE_TAX_INCOME_COLNAME].apply(income_tax)
-    df["Employee take home"] -= df[PRE_TAX_INCOME_COLNAME].apply(national_insurance)
+    df[E_TAKE_HOME_COLNAME] = df[PRE_TAX_INCOME_COLNAME] - df[PRE_TAX_INCOME_COLNAME].apply(income_tax)
+    df[E_TAKE_HOME_COLNAME] -= df[PRE_TAX_INCOME_COLNAME].apply(national_insurance)
+
+    df["Employee take home (incl employer's NI)"] = df[E_TAKE_HOME_COLNAME]
+    df["Employee take home (incl employer's NI)"] -= df[E_TAKE_HOME_COLNAME].apply(employers_national_insurance)
 
     fig, ax = plt.subplots()
 
     axes = plt.gca()
-    axes.set_ylim([0, 180 * 1000])
+    axes.set_ylim([0, 250 * 1000])
 
     df.plot(title="Contractor income compared to employee income (FY 2018/19)", ax=ax)
     plt.grid()
