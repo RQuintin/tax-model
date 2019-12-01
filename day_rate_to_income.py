@@ -1,129 +1,134 @@
 #!/usr/bin/env python3
 
 import matplotlib
+
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
+# FY 2018/2019
 WORKING_DAYS_IN_A_YEAR = 225
-FLAT_RATE_VAT = 0.145
+FLAT_RATE_VAT = 0.165
 VAT_RATE = 0.2
-CORPORATION_TAX_RATE = 0.2
+CORPORATION_TAX_RATE = 0.19
+NI_PRIMARY_THESHOLD = 702 * 12
+NI_UPPER_EARNINGS_LIMIT = 3863 * 12
+TAX_FREE_ALLOWANCE = 11850
 
 
-def charged_vat(income):
+def charged_vat(income: float) -> float:
     return income * VAT_RATE
 
 
-def paid_vat(income):
+def paid_vat(income: float) -> float:
     return income * FLAT_RATE_VAT
 
 
-def corporation_tax(income):
+def corporation_tax(income: float) -> float:
     return income * CORPORATION_TAX_RATE
 
 
-def dividend_tax(pre_tax):
-    # Assume we're paying a salary equal to tax free allowance
-    tax_free_allowance = calculate_tax_free_allowance(pre_tax)
-    pre_tax -= tax_free_allowance
+def contractor_personal_taxes(pre_tax: float) -> float:
+    # Assume we pay out salary to the NI Primary Threshold, which is the
+    # effective "tax free rate" for contractors
+    untaxed = pre_tax
+    personal_taxes: float = 0
 
-    # dividend personal allowance
-    pre_tax -= min(pre_tax, 5000)
+    untaxed -= NI_PRIMARY_THESHOLD
 
-    basic_rate_eligible = min(pre_tax, 43000 - 5000)
-    basic_rate_tax = basic_rate_eligible * 0.075
-    pre_tax -= basic_rate_eligible
+    # 2,000 of dividends tax free
+    untaxed -= 2000
 
-    higher_rate_eligible = min(pre_tax, 150000 - 43000 - 5000)
-    higher_rate_tax = higher_rate_eligible * 0.325
-    pre_tax -= higher_rate_eligible
+    basic_rate_eligible = min(untaxed, 50000 - NI_PRIMARY_THESHOLD)
+    personal_taxes += basic_rate_eligible * 0.075
+    untaxed -= basic_rate_eligible
 
-    additional_rate_eligible = pre_tax
-    additional_rate_tax = additional_rate_eligible * 0.381
+    higher_rate_eligible = min(untaxed, 100 * 1000)
+    personal_taxes += higher_rate_eligible * 0.4
+    untaxed -= higher_rate_eligible
 
-    return basic_rate_tax + higher_rate_tax + additional_rate_tax
+    additional_rate_eligible = untaxed
+    personal_taxes += additional_rate_eligible * 0.45
+    untaxed -= additional_rate_eligible
+
+    return personal_taxes
 
 
 def calculate_tax_free_allowance(pre_tax):
     if pre_tax < 100000:
-        return 11000
+        return min(TAX_FREE_ALLOWANCE, pre_tax)
     else:
-        return max(0, 11000 - ((pre_tax - 100000) / 2))
+        return max(0, TAX_FREE_ALLOWANCE - ((pre_tax - 100000) / 2))
 
 
-def income_tax(pre_tax):
+def income_tax(pre_tax: float) -> float:
+    income_tax_payable: float = 0
+    untaxed = pre_tax
+
     tax_free_allowance = calculate_tax_free_allowance(pre_tax)
-    pre_tax -= tax_free_allowance
+    untaxed -= tax_free_allowance
 
-    basic_rate_eligible = min(pre_tax, 43000 - 11000)
+    basic_rate_eligible = min(untaxed, 34_500)
     basic_rate_tax = basic_rate_eligible * 0.2
-    pre_tax -= basic_rate_eligible
+    income_tax_payable += basic_rate_tax
+    untaxed -= basic_rate_eligible
 
-    higher_rate_eligible = min(pre_tax, 150000 - 43000)
+    higher_rate_eligible = min(untaxed, 150_000 - 34_500)
     higher_rate_tax = higher_rate_eligible * 0.4
-    pre_tax -= higher_rate_eligible
+    income_tax_payable += higher_rate_tax
+    untaxed -= higher_rate_eligible
 
-    additional_rate_eligible = pre_tax
+    additional_rate_eligible = untaxed
+    additional_rate_tax = untaxed * 0.45
+    income_tax_payable += additional_rate_tax
 
-    return basic_rate_tax + higher_rate_tax
+    return income_tax_payable
+
 
 def national_insurance(pre_ni):
-    ni_free_allowance = 8060
-    eligible = min(pre_ni, ni_free_allowance)
-    pre_ni -= eligible
-    after_ni = eligible
-
-    middle_rate_eligible = min(pre_ni, 43000 - 8060)
-    middle_rate_ni = middle_rate_eligible * 0.12
-    pre_ni -= middle_rate_eligible
-
-    upper_rate_eligible = pre_ni
-    upper_rate_ni = upper_rate_eligible * 0.02
-
-    return middle_rate_ni + upper_rate_ni
-
-def employers_ni(pre_ni):
-    ni_free_allowance = 8060
-    eligible = min(pre_ni, ni_free_allowance)
-    pre_ni -= eligible
-    after_ni = eligible
-
-    middle_rate_eligible = min(pre_ni, 43000 - 8060)
-    middle_rate_ni = middle_rate_eligible * 0.138
-    pre_ni -= middle_rate_eligible
-
-    upper_rate_eligible = pre_ni
-    upper_rate_ni = upper_rate_eligible * 0.138
-
-    return middle_rate_ni + upper_rate_ni
+    earnings_above_pt = max(0, pre_ni - NI_PRIMARY_THESHOLD)
+    earnings_above_uel = max(0, pre_ni - NI_UPPER_EARNINGS_LIMIT)
+    ni = (earnings_above_pt - earnings_above_uel) * 0.12
+    ni += earnings_above_uel * 0.02
+    return ni
 
 
 def main():
+    DAY_RATE_COLNAME = "Day rate (£)"
+    PRE_TAX_INCOME_COLNAME = "Pre-tax income"
+    CONTRACTOR_TAKE_HOME_COLNAME = "Contractor_take_home"
     df = pd.DataFrame(
         data=[
             (day_rate, day_rate * WORKING_DAYS_IN_A_YEAR)
-            for day_rate in range(200, 1000, 10)
+            for day_rate in range(100, 1000, 10)
         ],
-        columns=("Day rate (£)", "Pre-tax income")
+        columns=(DAY_RATE_COLNAME, PRE_TAX_INCOME_COLNAME),
     )
-    df = df.set_index(["Day rate (£)"])
-    df["Contractor take home"] = df["Pre-tax income"] + df["Pre-tax income"].apply(charged_vat)
-    df["Contractor take home"] -= df["Pre-tax income"].apply(paid_vat)
-    df["Contractor take home"] -= df["Pre-tax income"].apply(corporation_tax)
-    df["Contractor take home"] -= df["Pre-tax income"].apply(dividend_tax)
+    df = df.set_index([DAY_RATE_COLNAME])
 
-    df["Employee take home"] = df["Pre-tax income"] - df["Pre-tax income"].apply(income_tax)
-    df["Employee take home"] -= df["Pre-tax income"].apply(national_insurance)
-    df["Employee take home"] -= df["Pre-tax income"].apply(national_insurance)
+    df[CONTRACTOR_TAKE_HOME_COLNAME] = df[PRE_TAX_INCOME_COLNAME] + df[
+        PRE_TAX_INCOME_COLNAME
+    ].apply(charged_vat)
+    df[CONTRACTOR_TAKE_HOME_COLNAME] -= df[PRE_TAX_INCOME_COLNAME].apply(paid_vat)
+    df[CONTRACTOR_TAKE_HOME_COLNAME] -= df[PRE_TAX_INCOME_COLNAME].apply(
+        corporation_tax
+    )
+    df[CONTRACTOR_TAKE_HOME_COLNAME] -= df[PRE_TAX_INCOME_COLNAME].apply(
+        contractor_personal_taxes
+    )
+
+    df["Employee take home"] = df[PRE_TAX_INCOME_COLNAME] - df[PRE_TAX_INCOME_COLNAME].apply(income_tax)
+    df["Employee take home"] -= df[PRE_TAX_INCOME_COLNAME].apply(national_insurance)
 
     fig, ax = plt.subplots()
 
-    df.plot(
-        title="Contractor income compared to employee income (FY 2016/17)",
-        ax=ax
-    )
+    axes = plt.gca()
+    axes.set_ylim([0, 180 * 1000])
+
+    df.plot(title="Contractor income compared to employee income (FY 2018/19)", ax=ax)
+    plt.grid()
     plt.show()
+
 
 if __name__ == "__main__":
     main()
