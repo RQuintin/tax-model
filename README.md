@@ -2,3 +2,7 @@
 
 - Python3 with matplotlib and pandas
 - UK (excl Scotland) only
+
+## How to run
+
+`make`

@@ -2,7 +2,7 @@
 
 import matplotlib
 
-matplotlib.use("TkAgg")
+# matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -135,7 +135,7 @@ def main():
 
     df.plot(title="Contractor income compared to employee income (FY 2018/19)", ax=ax)
     plt.grid()
-    plt.show()
+    plt.savefig("day_rate_to_income.png")
 
 
 if __name__ == "__main__":
