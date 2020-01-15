@@ -1,4 +1,4 @@
-day_rate_to_income.png:
+day_rate_to_income.png: day_rate_to_income.py requirements.txt
 	tox
 
 day_rate_to_income.tar.gz: day_rate_to_income.py test_day_rate_to_income.py requirements.txt mypy.ini
